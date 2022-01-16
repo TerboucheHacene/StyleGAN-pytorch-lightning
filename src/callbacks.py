@@ -37,13 +37,12 @@ class UpdateMixingDepth(Callback):
             self.last_epoch = current_epoch
             self.n_epochs_current_depth += 1
 
-        if self.n_epochs_current_depth > epochs:
+        if self.n_epochs_current_depth >= epochs:
             # set next depth
             self.n_epochs_current_depth = 0
             self.step_current_depth = 0
             current_depth += 1
             pl_module.set_depth(current_depth)
-            print(current_depth, current_epoch)
 
         fade = self.fade_for_each_depth[current_depth]
         epochs = self.epochs_for_each_depth[current_depth]
@@ -54,5 +53,6 @@ class UpdateMixingDepth(Callback):
             alpha = self.step_current_depth / fade_point
         else:
             alpha = 1.0
+        self.step_current_depth += 1
 
         pl_module.set_alpha(alpha)

@@ -132,3 +132,4 @@ dmypy.json
 /models/
 cifar-10-batches-py/
 lightning_logs/
+gans-specialization/
