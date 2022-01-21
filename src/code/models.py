@@ -3,23 +3,32 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from custom_blocks import (
+from code.custom_blocks import (
     DiscriminatorBlock,
     DiscriminatorTop,
 )
 
 from custom_layers import CustomConv2d, Truncation
-from networks import GSynthesis, GMappingNetwork
+from code.networks import GSynthesis, GMappingNetwork
 
 
 class Generator(nn.Module):
     def __init__(
         self,
         resolution: int,
-        z_latent_dim: int = 512,
-        w_latent_dim: int = 512,
         conditional: bool = False,
         num_classes: int = 0,
+        z_latent_dim: int = 512,
+        w_latent_dim: int = 512,
+        hidden_dim: int = 512,
+        num_hidden_layers: int = 8,
+        learning_rate_multiplier: float = 0.01,
+        activation_func: str = "lrelu",
+        use_wscale: bool = True,
+        normalize_latents: bool = True,
+        num_channels: int = 3,
+        structure: str = "linear",
+        blur_filter: list = None,
         truncation_psi: float = 0.7,
         truncation_cutoff: float = 8,
         w_latent_avg_beta: float = 0.995,
@@ -27,6 +36,14 @@ class Generator(nn.Module):
         **kwargs,
     ):
         super().__init__()
+        self.conditional = conditional
+        self.style_mixing_prob = style_mixing_prob
+        self.structure = structure
+        self.num_classes = num_classes
+        self.num_channels = num_channels
+        self.conditional = conditional
+        self.resolution = resolution
+        self.z_latent_dim = z_latent_dim
 
         if conditional:
             assert num_classes > 0
@@ -35,15 +52,25 @@ class Generator(nn.Module):
             )
             z_latent_dim *= 2
 
-        self.conditional = conditional
-        self.style_mixing_prob = style_mixing_prob
-
         # define g_mapping and g_synthesis
         self.num_layers = (int(np.log2(resolution)) - 1) * 2
         self.g_mapping = GMappingNetwork(
-            z_latent_dim=z_latent_dim, w_latent_broadcast=self.num_layers, **kwargs
+            z_latent_dim=z_latent_dim,
+            w_latent_broadcast=self.num_layers,
+            num_hidden_layers=num_hidden_layers,
+            hidden_dim=hidden_dim,
+            learning_rate_multiplier=learning_rate_multiplier,
+            activation_func=activation_func,
+            use_wscale=use_wscale,
+            normalize_latents=normalize_latents,
         )
-        self.g_synthesis = GSynthesis(resolution=resolution, **kwargs)
+        self.g_synthesis = GSynthesis(
+            w_latent_dim=w_latent_dim,
+            resolution=resolution,
+            num_channels=num_channels,
+            structure=structure,
+            blur_filter=blur_filter,
+        )
 
         # Define truncation layer
         if truncation_psi > 0:
@@ -56,7 +83,13 @@ class Generator(nn.Module):
         else:
             self.truncation = None
 
-    def forward(self, z_latents_in, depth, alpha, labels=None):
+    def forward(
+        self,
+        z_latents_in: torch.Tensor,
+        depth: int,
+        alpha: float,
+        labels: torch.Tensor = None,
+    ):
 
         if self.conditional:
             assert labels is not None
@@ -107,18 +140,18 @@ class Discriminator(nn.Module):
     def __init__(
         self,
         resolution: int,
+        structure: str = "linear",
         num_channels: int = 3,
         conditional: bool = False,
         num_classes: int = 0,
+        non_linearity: str = "lrelu",
+        use_wscale: bool = True,
+        blur_filter: list = None,
+        minibatch_std_group_size: int = 4,
+        minibatch_std_num_features: int = 1,
         fmap_base: int = 8192,
         fmap_decay: float = 1.0,
         fmap_max: int = 512,
-        non_linearity: str = "lrelu",
-        use_wscale: bool = True,
-        minibatch_std_group_size: int = 4,
-        minibatch_std_num_features: int = 1,
-        blur_filter: list = None,
-        structure: str = "linear",
         **kwargs,
     ):
         super().__init__()
@@ -138,8 +171,6 @@ class Discriminator(nn.Module):
         resolution_log_2 = int(np.log2(resolution))
         assert resolution == 2 ** resolution_log_2 and resolution >= 4
         self.depth = resolution_log_2 - 1
-        if blur_filter is None:
-            blur_filter = [1, 2, 1]
 
         act, gain = {
             "relu": (torch.relu, np.sqrt(2)),

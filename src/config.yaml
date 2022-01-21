@@ -1,0 +1,110 @@
+trainer:
+  callbacks:
+    - class_path: code.custom_callbacks.UpdateBatchSizeDataLoader
+      init_args:
+        batch_sizes:
+          - 512
+          - 512
+          - 256
+          - 128
+          - 64
+    - class_path: code.custom_callbacks.UpdateMixingDepth
+      init_args:
+        epochs_for_each_depth:
+          - 2
+          - 4
+          - 16
+          - 32
+          - 64
+        fade_for_each_depth:
+          - 50
+          - 50
+          - 50
+          - 50
+          - 50
+  gradient_clip_val: 1
+  gradient_clip_algorithm: norm
+  max_epochs: 118
+  limit_train_batches: 1.0
+  log_every_n_steps: 10
+  reload_dataloaders_every_n_epochs: 1
+  logger:
+    class_path: pytorch_lightning.loggers.CometLogger
+    init_args:
+      api_key: F8z2rvZxchPyTT2l1IawCAE7G
+      project_name: gans-specialization
+
+model:
+  generator:
+    class_path: code.models.Generator
+    init_args:
+      resolution: 128
+      conditional: False
+      num_classes: 0
+      z_latent_dim: 512
+      w_latent_dim: 512
+      hidden_dim: 512
+      num_hidden_layers: 8
+      learning_rate_multiplier: 0.01
+      activation_func: "lrelu"
+      use_wscale: True
+      normalize_latents: True
+      num_channels: 3
+      structure: "linear"
+      blur_filter:
+        - 1
+        - 2
+        - 1
+      truncation_psi: 0.7
+      truncation_cutoff: 8
+      w_latent_avg_beta: 0.995
+      style_mixing_prob: 0.9
+
+  discriminator:
+    class_path: code.models.Discriminator
+    init_args:
+      resolution: 128
+      structure: "linear"
+      num_channels: 3
+      conditional: False
+      num_classes: 0
+      non_linearity: "lrelu"
+      use_wscale: True
+      blur_filter:
+        - 1
+        - 2
+        - 1
+      minibatch_std_group_size: 4
+      minibatch_std_num_features: 1
+  ignore_labels: False
+  num_debug_samples: 25
+  loss: logistic
+  drift: 0.001
+  disc_repeats: 1
+  use_ema: false
+  ema_decay: 0.999
+
+gen_optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 0.001
+    betas:
+      - 0
+      - 0.99
+    eps: 1e-8
+
+disc_optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 0.001
+    betas:
+      - 0
+      - 0.99
+    eps: 1e-8
+data:
+  data_dir: ../data_set/animeface-character-dataset/thumb
+  image_size:
+    - 128
+    - 128
+  batch_size: 64
+  num_workers: 4

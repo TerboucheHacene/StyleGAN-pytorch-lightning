@@ -295,8 +295,8 @@ class LayerEpilogue(nn.Module):
 class StddevLayer(nn.Module):
     def __init__(self, group_size=4, num_new_features=1):
         super().__init__()
-        self.group_size = 4
-        self.num_new_features = 1
+        self.group_size = group_size
+        self.num_new_features = num_new_features
 
     def forward(self, x):
         b, c, h, w = x.shape

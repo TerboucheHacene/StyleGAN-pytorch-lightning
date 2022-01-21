@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch.nn.modules.sparse import Embedding
 
 
-from custom_blocks import (
+from code.custom_blocks import (
     GSynthesisBlock,
     InputBlock,
 )
@@ -84,18 +84,18 @@ class GSynthesis(nn.Module):
         w_latent_dim: int = 512,
         num_channels: int = 3,
         resolution: int = 1024,
-        fmap_base: int = 8192,
-        fmap_decay: float = 1.0,
-        fmap_max: int = 512,
+        structure: str = "linear",
+        blur_filter: list = None,
         use_styles: bool = True,
         const_input_layer: bool = True,
         use_noise: bool = True,
-        non_linearity: str = "lrelu",
         use_wscale: bool = True,
         use_pixel_norm: bool = True,
         use_instance_norm: bool = True,
-        blur_filter: list = None,
-        structure: str = "linear",
+        non_linearity: str = "lrelu",
+        fmap_base: int = 8192,
+        fmap_decay: float = 1.0,
+        fmap_max: int = 512,
         **kwargs,
     ):
 

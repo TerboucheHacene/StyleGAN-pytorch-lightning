@@ -346,7 +346,7 @@ class RelativisticAverageHingeLoss(Loss):
 
     """
 
-    def __init__(self, name="relativistic_average_hinge"):
+    def __init__(self, name="relativistic_hinge"):
         super().__init__()
         self.name = name
 
@@ -559,3 +559,25 @@ class RLCRegularizer(nn.Module):
             fake_preds - self.rlc_ar
         ).norm(dim=-1).pow(2).mean()
         return self.rlc_w * regularization_loss
+
+
+class LogisticLoss(Loss):
+    def __init__(self, name="logistic", weight=5, **kwargs) -> None:
+        super().__init__(name, **kwargs)
+        self.loss = NSGANLoss()
+        self.regularizer = R1Regularizer(weight=weight)
+
+    def gen_loss(self, fake_preds: torch.Tensor, **kwargs) -> torch.Tensor:
+        return self.loss.gen_loss(fake_preds)
+
+    def disc_loss(
+        self,
+        fake_preds: torch.Tensor,
+        real_preds: torch.Tensor,
+        real_samples: torch.Tensor,
+        **kwargs,
+    ) -> torch.Tensor:
+        loss = self.loss.disc_loss(real_preds, fake_preds) + self.regularizer(
+            real_preds, real_samples
+        )
+        return loss

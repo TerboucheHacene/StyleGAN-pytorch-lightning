@@ -23,7 +23,7 @@ def initialize_momentum_params(online_net: nn.Module, momentum_net: nn.Module):
 
 
 class MomentumUpdater:
-    def __init__(self, base_tau: float = 0.996, final_tau: float = 1.0):
+    def __init__(self, tau: float = 0.996):
         """Updates momentum parameters using exponential moving average.
 
         Parameters
@@ -37,13 +37,7 @@ class MomentumUpdater:
         """
 
         super().__init__()
-
-        assert 0 <= base_tau <= 1
-        assert 0 <= final_tau <= 1 and base_tau <= final_tau
-
-        self.base_tau = base_tau
-        self.cur_tau = base_tau
-        self.final_tau = final_tau
+        self.cur_tau = tau
 
     @torch.no_grad()
     def update(self, online_net: nn.Module, momentum_net: nn.Module):
@@ -59,20 +53,3 @@ class MomentumUpdater:
 
         for op, mp in zip(online_net.parameters(), momentum_net.parameters()):
             mp.data = self.cur_tau * mp.data + (1 - self.cur_tau) * op.data
-
-    def update_tau(self, cur_step: int, max_steps: int):
-        """Computes the next value for the weighting decrease coefficient tau using cosine annealing.
-        Attributes
-        ----------
-        cur_step : int
-            number of gradient steps so far.
-        max_steps : int
-            overall number of gradient steps in the whole training.
-        """
-
-        self.cur_tau = (
-            self.final_tau
-            - (self.final_tau - self.base_tau)
-            * (math.cos(math.pi * cur_step / max_steps) + 1)
-            / 2
-        )
