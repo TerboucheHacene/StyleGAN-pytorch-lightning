@@ -8,7 +8,7 @@ from code.custom_blocks import (
     DiscriminatorTop,
 )
 
-from custom_layers import CustomConv2d, Truncation
+from code.custom_layers import CustomConv2d, Truncation
 from code.networks import GSynthesis, GMappingNetwork
 
 

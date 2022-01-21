@@ -14,7 +14,7 @@ from code.custom_blocks import (
     InputBlock,
 )
 
-from custom_layers import CustomConv2d, CustomLinear, PixelNormLayer
+from code.custom_layers import CustomConv2d, CustomLinear, PixelNormLayer
 
 
 class GMappingNetwork(nn.Module):

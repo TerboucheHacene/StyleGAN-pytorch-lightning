@@ -6,7 +6,7 @@ from collections import OrderedDict
 import pickle
 
 import numpy as np
-from custom_layers import (
+from code.custom_layers import (
     LayerEpilogue,
     CustomLinear,
     CustomConv2d,

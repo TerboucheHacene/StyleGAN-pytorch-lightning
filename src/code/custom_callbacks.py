@@ -16,7 +16,6 @@ class UpdateBatchSizeDataLoader(Callback):
     def on_train_epoch_start(self, trainer, pl_module):
         current_depth = pl_module.current_depth
         trainer.datamodule.set_batch_size(self.batch_sizes[current_depth])
-        print(self.batch_sizes[current_depth])
 
 
 @CALLBACK_REGISTRY
