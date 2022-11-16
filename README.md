@@ -12,7 +12,7 @@ A new improved version called StyleGAN v2 was introduced in 2020:
 > Training Generative Adversarial Networks with Limited Data \
 Tero Karras, Miika Aittala, Janne Hellsten, Samuli Laine, Jaakko Lehtinen, Timo Aila
 
-The official Tensorflow implementation can be found here https://github.com/NVlabs/stylegan2-ada/
+The official Tensorflow implementation can be found here https://github.com/NVlabs/stylegan2-ada/ \
 The authors also released the Pytorch implementation: https://github.com/NVlabs/stylegan2-ada/
 
 ## How to use
@@ -20,12 +20,13 @@ The authors also released the Pytorch implementation: https://github.com/NVlabs/
 To make things simple, I recommend using *Poetry* as the python package manager. It can be installed [here](https://python-poetry.org/docs/#installation).
 After cloning the repo, you can install everything by doing:
 
-> `poetry install`
+    poetry install
 
 For more details about the dependencies, please take a look at the [toml](pyproject.toml) file. 
 Note that all the configs can be parametrized using the [config.yaml](configs/config.yaml) file. You can change path to your dataset as well as the hyperparameters of the model. 
 To start the training:
-> `python scripts/train.py fit --config configs/config.yaml`
+
+    python scripts/train.py fit --config configs/config.yaml
 
 ## Content
 
