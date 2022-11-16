@@ -3,12 +3,30 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from collections import OrderedDict
-import pickle
-
+from typing import List, Tuple
 import numpy as np
 
 
 class CustomLinear(nn.Module):
+    """Custom linear layer with weight scaling and bias multiplication.
+
+    Parameters
+    ----------
+    input_size : int
+        The number of input features.
+    output_size : int
+        The number of output features.
+    gain : float, optional
+        The gain, by default 2 ** (0.5)
+    use_wscale : bool, optional
+        Whether to use weight scaling, by default False
+    lrmul : float, optional
+        The learning rate multiplier, by default 1
+    bias : bool, optional
+        Whether to use bias, by default True
+
+    """
+
     def __init__(
         self,
         input_size: int,
@@ -17,24 +35,7 @@ class CustomLinear(nn.Module):
         use_wscale: bool = False,
         lrmul: float = 1,
         bias: bool = True,
-    ):
-        """[summary]
-
-        Parameters
-        ----------
-        input_size : int
-            [description]
-        output_size : int
-            [description]
-        gain : float, optional
-            [description], by default 2**(0.5)
-        use_wscale : bool, optional
-            [description], by default False
-        lrmul : float, optional
-            [description], by default 1
-        bias : bool, optional
-            [description], by default True
-        """
+    ) -> None:
         super().__init__()
         he_std = gain * input_size ** (-0.5)  # He init
         # Equalized learning rate and custom learning rate multiplier.
@@ -52,7 +53,7 @@ class CustomLinear(nn.Module):
         else:
             self.bias = None
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         bias = self.bias
         if bias is not None:
             bias = bias * self.b_mul
@@ -60,7 +61,28 @@ class CustomLinear(nn.Module):
 
 
 class BlurLayer(nn.Module):
-    def __init__(self, kernel=[1, 2, 1], normalize=True, flip=False, stride=1):
+    """Blur layer.
+
+    Parameters
+    ----------
+    kernel : list, optional
+        The kernel, by default [1, 2, 1]
+    normalize : bool, optional
+        Whether to normalize the kernel, by default True
+    flip : bool, optional
+        Whether to flip the kernel, by default False
+    stride : int, optional
+        The stride, by default 1
+    """
+
+    def __init__(
+        self,
+        kernel: List[int] = [1, 2, 1],
+        normalize: bool = True,
+        flip: bool = False,
+        stride: int = 1,
+    ) -> None:
+
         super(BlurLayer, self).__init__()
         kernel = torch.tensor(kernel, dtype=torch.float32)
         kernel = kernel[:, None] * kernel[None, :]
@@ -72,7 +94,7 @@ class BlurLayer(nn.Module):
         self.register_buffer("kernel", kernel)
         self.stride = stride
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # expand kernel channels
         kernel = self.kernel.expand(x.size(1), -1, -1, -1)
         x = F.conv2d(
@@ -86,17 +108,27 @@ class BlurLayer(nn.Module):
 
 
 class Upscale2d(nn.Module):
-    def __init__(self, factor=2, gain=1):
+    """Upscale layer.
+
+    Parameters
+    ----------
+    factor : int, optional
+        The factor, by default 2
+    gain : int, optional
+        The gain, by default 1
+    """
+
+    def __init__(self, factor: int = 2, gain: float = 1.0) -> None:
         super().__init__()
         assert isinstance(factor, int) and factor >= 1
         self.gain = gain
         self.factor = factor
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.upscale2d(x, factor=self.factor, gain=self.gain)
 
     @staticmethod
-    def upscale2d(x, factor=2, gain=1):
+    def upscale2d(x: torch.Tensor, factor=2, gain=1) -> torch.Tensor:
         assert x.dim() == 4
         if gain != 1:
             x = x * gain
@@ -112,22 +144,46 @@ class Upscale2d(nn.Module):
 
 
 class CustomConv2d(nn.Module):
-    """Conv layer with equalized learning rate and custom learning rate multiplier."""
+    """Conv layer with equalized learning rate and custom learning rate multiplier..
+
+    Parameters
+    ----------
+    input_channels : int
+        The number of input channels.
+    output_channels : int
+        The number of output channels.
+    kernel_size : int
+        The kernel size.
+    gain : float, optional
+        The gain, by default 2 ** (0.5)
+    use_wscale : bool, optional
+        Whether to use weight scaling, by default False
+    lrmul : float, optional
+        The learning rate multiplier, by default 1
+    bias : bool, optional
+        Whether to use bias, by default True
+    upscale : bool, optional
+        Whether to use upsampling, by default False
+    downscale : bool, optional
+        Whether to use downsampling, by default False
+    intermediate : nn.Module, optional
+        The intermediate layer, by default None
+    """
 
     def __init__(
         self,
-        input_channels,
-        output_channels,
-        kernel_size,
-        stride=1,
-        gain=2 ** (0.5),
-        use_wscale=False,
-        lrmul=1,
-        bias=True,
-        intermediate=None,
-        upscale=False,
-        downscale=False,
-    ):
+        input_channels: int,
+        output_channels: int,
+        kernel_size: int,
+        gain: float = 2 ** (0.5),
+        use_wscale: bool = False,
+        lrmul: float = 1.0,
+        bias: bool = True,
+        upscale: bool = False,
+        downscale: bool = False,
+        intermediate: nn.Module = None,
+    ) -> None:
+
         super().__init__()
         if upscale:
             self.upscale = Upscale2d()
@@ -137,7 +193,7 @@ class CustomConv2d(nn.Module):
             self.downscale = Downscale2d()
         else:
             self.downscale = None
-        he_std = gain * (input_channels * kernel_size ** 2) ** (-0.5)  # He init
+        he_std = gain * (input_channels * kernel_size**2) ** (-0.5)  # He init
         self.kernel_size = kernel_size
         if use_wscale:
             init_std = 1.0 / lrmul
@@ -156,18 +212,20 @@ class CustomConv2d(nn.Module):
             self.bias = None
         self.intermediate = intermediate
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         bias = self.bias
         if bias is not None:
             bias = bias * self.b_mul
 
         have_convolution = False
         if self.upscale is not None and min(x.shape[2:]) * 2 >= 128:
-            # this is the fused upscale + conv from StyleGAN, sadly this seems incompatible with the non-fused way
-            # this really needs to be cleaned up and go into the conv...
+            # this is the fused upscale + conv from StyleGAN, sadly this seems
+            # incompatible with the non-fused way this really needs to be cleaned up
+            #  and go into the conv...
             w = self.weight * self.w_mul
             w = w.permute(1, 0, 2, 3)
-            # probably applying a conv on w would be more efficient. also this quadruples the weight (average)?!
+            # probably applying a conv on w would be more efficient. also this quadruples
+            # the weight (average)?!
             w = F.pad(w, (1, 1, 1, 1))
             w = w[:, :, 1:, 1:] + w[:, :, :-1, 1:] + w[:, :, 1:, :-1] + w[:, :, :-1, :-1]
             x = F.conv_transpose2d(x, w, stride=2, padding=(w.size(-1) - 1) // 2)
@@ -209,14 +267,20 @@ class CustomConv2d(nn.Module):
 
 
 class NoiseLayer(nn.Module):
-    """adds noise. noise is per pixel (constant over channels) with per-channel weight"""
+    """adds noise. noise is per pixel (constant over channels) with per-channel weight
 
-    def __init__(self, channels):
+    Parameters
+    ----------
+    channels : int
+        The number of channels.
+    """
+
+    def __init__(self, channels: int) -> None:
         super().__init__()
         self.weight = nn.Parameter(torch.zeros(channels))
         self.noise = None
 
-    def forward(self, x, noise=None):
+    def forward(self, x: torch.Tensor, noise=None) -> torch.Tensor:
         if noise is None and self.noise is None:
             noise = torch.randn(
                 x.size(0), 1, x.size(2), x.size(3), device=x.device, dtype=x.dtype
@@ -231,13 +295,25 @@ class NoiseLayer(nn.Module):
 
 
 class StyleMod(nn.Module):
-    def __init__(self, latent_size, channels, use_wscale):
+    """Style modulation layer
+
+    Parameters
+    ----------
+    channels : int
+        The number of channels.
+    dlatent_size : int
+        The size of the latent space.
+    use_wscale : bool, optional
+        Whether to use weight scaling, by default False
+    """
+
+    def __init__(self, latent_size: int, channels: int, use_wscale: bool) -> None:
         super(StyleMod, self).__init__()
         self.lin = CustomLinear(
             latent_size, channels * 2, gain=1.0, use_wscale=use_wscale
         )
 
-    def forward(self, x, latent):
+    def forward(self, x: torch.Tensor, latent: torch.Tensor) -> torch.Tensor:
         style = self.lin(latent)  # style => [batch_size, n_channels*2]
         shape = [-1, 2, x.size(1)] + (x.dim() - 2) * [1]
         style = style.view(shape)  # [batch_size, 2, n_channels, ...]
@@ -246,28 +322,57 @@ class StyleMod(nn.Module):
 
 
 class PixelNormLayer(nn.Module):
-    def __init__(self, epsilon=1e-8):
+    """Pixelwise feature vector normalization.
+
+    Parameters
+    ----------
+    epsilon : float, optional
+        The epsilon value to avoid division by zero, by default 1e-8
+    """
+
+    def __init__(self, epsilon: float = 1e-8) -> None:
         super().__init__()
         self.epsilon = epsilon
 
-    def forward(self, x):
-        return x * torch.rsqrt(torch.mean(x ** 2, dim=1, keepdim=True) + self.epsilon)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x * torch.rsqrt(torch.mean(x**2, dim=1, keepdim=True) + self.epsilon)
 
 
 class LayerEpilogue(nn.Module):
-    """Things to do at the end of each layer."""
+    """Layer epilogue layer "Things to do at the end of each layer".
+
+    Parameters
+        ----------
+        channels : int
+            The number of channels.
+        dlatent_size : int
+            The size of the latent space.
+        use_wscale : bool
+            Whether to use weight scaling.
+        use_noise : bool
+            Whether to use noise.
+        use_pixel_norm : bool
+            Whether to use pixel normalization.
+        use_instance_norm : bool
+            Whether to use instance normalization.
+        use_styles : bool
+            Whether to use style layers.
+        activation_layer : nn.Module
+            The activation layer to use.
+    """
 
     def __init__(
         self,
-        channels,
-        dlatent_size,
-        use_wscale,
-        use_noise,
-        use_pixel_norm,
-        use_instance_norm,
-        use_styles,
-        activation_layer,
-    ):
+        channels: int,
+        dlatent_size: int,
+        use_wscale: bool,
+        use_noise: bool,
+        use_pixel_norm: bool,
+        use_instance_norm: bool,
+        use_styles: bool,
+        activation_layer: nn.Module,
+    ) -> None:
+
         super().__init__()
         layers = []
         if use_noise:
@@ -283,7 +388,7 @@ class LayerEpilogue(nn.Module):
         else:
             self.style_mod = None
 
-    def forward(self, x, dlatents_in_slice=None):
+    def forward(self, x: torch.Tensor, dlatents_in_slice: int = None):
         x = self.top_epi(x)
         if self.style_mod is not None:
             x = self.style_mod(x, dlatents_in_slice)
@@ -293,19 +398,29 @@ class LayerEpilogue(nn.Module):
 
 
 class StddevLayer(nn.Module):
-    def __init__(self, group_size=4, num_new_features=1):
+    """Standard deviation layer.
+
+    Parameters
+    ----------
+    group_size : int, optional
+        The group size, by default 4
+    num_new_features : int, optional
+        The number of new features, by default 1
+    """
+
+    def __init__(self, group_size: int = 4, num_new_features: int = 1) -> None:
         super().__init__()
         self.group_size = group_size
         self.num_new_features = num_new_features
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         b, c, h, w = x.shape
         group_size = min(self.group_size, b)
         y = x.reshape(
             [group_size, -1, self.num_new_features, c // self.num_new_features, h, w]
         )
         y = y - y.mean(0, keepdim=True)
-        y = (y ** 2).mean(0, keepdim=True)
+        y = (y**2).mean(0, keepdim=True)
         y = (y + 1e-8) ** 0.5
         y = y.mean([3, 4, 5], keepdim=True).squeeze(
             3
@@ -320,7 +435,17 @@ class StddevLayer(nn.Module):
 
 
 class Downscale2d(nn.Module):
-    def __init__(self, factor=2, gain=1):
+    """Downscale2d layer.
+
+    Parameters
+    ----------
+    factor : int, optional
+        The factor to downscale, by default 2
+    gain : float, optional
+        The gain, by default 1.0
+    """
+
+    def __init__(self, factor: int = 2, gain: float = 1.0) -> None:
         super().__init__()
         assert isinstance(factor, int) and factor >= 1
         self.factor = factor
@@ -331,63 +456,69 @@ class Downscale2d(nn.Module):
         else:
             self.blur = None
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.dim() == 4
         # 2x2, float32 => downscale using _blur2d().
         if self.blur is not None and x.dtype == torch.float32:
             return self.blur(x)
-
         # Apply gain.
         if self.gain != 1:
             x = x * self.gain
-
         # No-op => early exit.
         if self.factor == 1:
             return x
-
-        # Large factor => downscale using tf.nn.avg_pool().
-        # NOTE: Requires tf_config['graph_options.place_pruned_graph']=True to work.
         return F.avg_pool2d(x, self.factor)
 
 
 class View(nn.Module):
-    def __init__(self, *shape):
+    """View layer.
+
+    Parameters
+    ----------
+    shape : tuple
+        The shape to view the tensor to.
+    """
+
+    def __init__(self, *shape: Tuple[int, ...]) -> None:
         super().__init__()
         self.shape = shape
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x.view(x.size(0), *self.shape)
 
 
-"""
-
 class Truncation(nn.Module):
-    def __init__(self, avg_latent, max_layer=8, threshold=0.7):
-        super().__init__()
-        self.max_layer = max_layer
-        self.threshold = threshold
-        self.register_buffer("avg_latent", avg_latent)
+    """Truncation layer.
 
-    def forward(self, x):
-        assert x.dim() == 3
-        interp = torch.lerp(self.avg_latent, x, self.threshold)
-        do_trunc = (torch.arange(x.size(1)) < self.max_layer).view(1, -1, 1)
-        return torch.where(do_trunc, interp, x)
-"""
+    Parameters
+    ----------
+    avg_latent : torch.Tensor
+        The latent dimension of the average space.
+    max_layer : int, optional
+        The maximum layer, by default 8
+    threshold : float, optional
+        The threshold, by default 0.7
+    beta : float, optional
+        The beta parameter, by default 0.995
+    """
 
-
-class Truncation(nn.Module):
-    def __init__(self, avg_latent, max_layer=8, threshold=0.7, beta=0.995):
+    def __init__(
+        self,
+        avg_latent: int,
+        max_layer: int = 8,
+        threshold: float = 0.7,
+        beta: float = 0.995,
+    ) -> None:
         super().__init__()
         self.max_layer = max_layer
         self.threshold = threshold
         self.beta = beta
         self.register_buffer("avg_latent", avg_latent)
 
-    def update(self, last_avg):
+    def update(self, last_avg: torch.Tensor) -> None:
         self.avg_latent.copy_(self.beta * self.avg_latent + (1.0 - self.beta) * last_avg)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.dim() == 3
         interp = torch.lerp(self.avg_latent, x, self.threshold)
         do_trunc = (torch.arange(x.size(1)) < self.max_layer).view(1, -1, 1).to(x.device)

@@ -8,14 +8,45 @@ from torchvision.utils import make_grid, save_image
 import matplotlib.pyplot as plt
 
 
-from code.utils import MomentumUpdater, initialize_momentum_params
-from code import losses
-from code.models import Generator, Discriminator
+from stylegan.utils import MomentumUpdater, initialize_momentum_params
+from stylegan import losses
+from stylegan.models import Generator, Discriminator
 from pytorch_lightning.utilities.cli import instantiate_class
 from PIL import Image
+from typing import Union, Tuple, List, Dict
 
 
 class StyleGAN(pl.LightningModule):
+    """Initialize the StyleGAN model.
+
+    Parameters
+    ----------
+    generator : Generator
+        The generator model.
+    discriminator : Discriminator
+        The discriminator model.
+    optimizer_init_gen : dict
+        The generator optimizer configuration.
+    optimizer_init_disc : dict
+        The discriminator optimizer configuration.
+    ignore_labels : bool, optional
+        Whether to ignore labels, by default False
+    start_depth : int, optional
+        The starting depth of the model, by default 0
+    num_debug_samples : int, optional
+        The number of samples to generate for debugging, by default 25
+    loss : str, optional
+        The loss function to use, by default "logistic"
+    drift : float, optional
+        The drift value to use, by default 0.001
+    disc_repeats : int, optional
+        The number of times to repeat the discriminator, by default 1
+    use_ema : bool, optional
+        Whether to use exponential moving average, by default False
+    ema_decay : float, optional
+        The exponential moving average decay, by default 0.999
+    """
+
     def __init__(
         self,
         generator: Generator,
@@ -31,7 +62,8 @@ class StyleGAN(pl.LightningModule):
         use_ema: bool = False,
         ema_decay: float = 0.999,
         **kwargs,
-    ):
+    ) -> None:
+
         super().__init__()
 
         self.generator = generator
@@ -40,7 +72,7 @@ class StyleGAN(pl.LightningModule):
         self.conditional = self.generator.conditional
         self.num_classes = self.generator.num_classes
         self.resolution = self.generator.resolution
-        self.depth = int(np.log2(float(self.resolution))) - 1
+        self.max_depth = int(np.log2(float(self.resolution))) - 1
         self.z_latent_dim = self.generator.z_latent_dim
         self.num_channels = self.generator.num_channels
         self.disc_repeats = disc_repeats
@@ -66,30 +98,40 @@ class StyleGAN(pl.LightningModule):
         if self.use_ema:
             self.momentum_generator = copy.deepcopy(self.generator)
             initialize_momentum_params(self.generator, self.momentum_generator)
-            self.momentum_updater = MomentumUpdater(base_tau=self.ema_decay)
+            self.momentum_updater = MomentumUpdater(tau=self.ema_decay)
 
         self.generate_images_for_debug()
         self.setup_loss_func(loss_func=loss)
         self.loss_name = loss
 
     @property
-    def momentum_pairs(self):
+    def momentum_pairs(self) -> None:
         if self.use_ema:
             return [(self.generator, self.momentum_generator)]
         else:
             raise RuntimeError("use_em is False")
 
-    def set_depth(self, new_depth):
+    @property
+    def depth(self) -> int:
+        return self.current_depth
+
+    @depth.setter
+    def depth(self, new_depth) -> None:
         self.current_depth = new_depth
 
-    def set_alpha(self, new_alpha):
+    @property
+    def alpha(self) -> float:
+        return self.current_alpha
+
+    @alpha.setter
+    def alpha(self, new_alpha) -> None:
         self.current_alpha = new_alpha
 
-    def on_train_start(self):
+    def on_train_start(self) -> None:
         """Resents the step counter at the beginning of training."""
         self.last_step = 0
 
-    def setup_loss_func(self, loss_func: str):
+    def setup_loss_func(self, loss_func: str) -> None:
         if isinstance(loss_func, str):
             loss_func = loss_func.lower()
 
@@ -115,12 +157,14 @@ class StyleGAN(pl.LightningModule):
         elif loss_func == "standard":
             self.loss = losses.StandardGANLoss()
 
-    def progressive_down_sampling(self, real_images, depth, alpha):
+    def progressive_down_sampling(
+        self, real_images: torch.Tensor, depth: int, alpha: float
+    ) -> torch.Tensor:
         if self.structure == "fixed":
             return real_images
 
-        down_sample_factor = int(np.power(2, self.depth - depth - 1))
-        prior_down_sample_factor = max(int(np.power(2, self.depth - depth)), 0)
+        down_sample_factor = int(np.power(2, self.max_depth - depth - 1))
+        prior_down_sample_factor = max(int(np.power(2, self.max_depth - depth)), 0)
 
         down_sampled_real_images = nn.AvgPool2d(kernel_size=down_sample_factor)(
             real_images
@@ -138,18 +182,23 @@ class StyleGAN(pl.LightningModule):
         else:
             return down_sampled_real_images
 
-    def forward(self, noise):
+    def forward(self, noise: torch.Tensor) -> torch.Tensor:
         if self.use_ema:
             generated_samples = self.momentum_generator(noise)
         else:
             generated_samples = self.generator(noise)
         return generated_samples
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(
+        self,
+        batch: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch_idx: int,
+        optimizer_idx: int,
+    ) -> torch.Tensor:
         if self.ignore_labels:
             batch = batch[0]
         depth = self.current_depth
-        alpha = self.current_alpha
+        alpha = self.alpha
         self.current_res = np.power(2, self.current_depth + 2)
 
         if self.conditional:
@@ -237,7 +286,7 @@ class StyleGAN(pl.LightningModule):
             )
             return disc_loss
 
-    def generate_images_for_debug(self):
+    def generate_images_for_debug(self) -> None:
         fixed_input = torch.randn(self.num_samples, self.z_latent_dim).to(self.device)
         if self.conditional:
             fixed_labels = torch.randint(
@@ -248,7 +297,7 @@ class StyleGAN(pl.LightningModule):
         self.fixed_input = fixed_input
         self.fixed_labels = fixed_labels
 
-    def get_fake_images(self, outputs):
+    def get_fake_images(self, outputs: List[List[Dict]]) -> torch.Tensor:
         with torch.no_grad():
             if self.use_ema:
                 self.momentum_generator.eval()
@@ -268,11 +317,11 @@ class StyleGAN(pl.LightningModule):
                 )
         return fake
 
-    def save_grid(self, outputs):
+    def save_grid(self, outputs: torch.Tensor) -> None:
         fake = self.get_fake_images(outputs)
         fake = fake.detach().cpu()
         scale_factor = (
-            int(np.power(2, self.depth - self.current_depth - 1))
+            int(np.power(2, self.max_depth - self.current_depth - 1))
             if self.structure == "linear"
             else 1
         )
@@ -280,7 +329,7 @@ class StyleGAN(pl.LightningModule):
             fake = F.interpolate(fake, scale_factor=scale_factor)
         save_image(
             fake,
-            "generated.png",
+            "artifacts/generated.png",
             nrow=int(np.sqrt((self.num_samples))),
             normalize=True,
             scale_each=True,
@@ -288,7 +337,7 @@ class StyleGAN(pl.LightningModule):
             padding=1,
         )
 
-    def create_grid(self, fake):
+    def create_grid(self, fake: torch.Tensor) -> torch.Tensor:
         size = (self.num_channels, self.current_res, self.current_res)
         fake = (fake + 1) / 2
         fake = fake.clamp_(0, 1).view(-1, *size)
@@ -318,7 +367,7 @@ class StyleGAN(pl.LightningModule):
         # image_grid = self.create_grid(fake)
         # image_from_plot = self.plot_to_image(image_grid)
         self.save_grid(outputs)
-        image = Image.open("generated.png")
+        image = Image.open("artifacts/generated.png")
         self.logger.experiment.log_image(image, name="generated_images", overwrite=False)
 
     def configure_optimizers(self):
@@ -333,8 +382,9 @@ class StyleGAN(pl.LightningModule):
         )
 
     def on_train_batch_end(self, outputs, batch, batch_idx, unused=0):
-        """Performs the momentum update of momentum pairs using exponential moving average at the
-        end of the current training step if an optimizer step was performed.
+        """Performs the momentum update of momentum pairs using exponential moving
+        average at the end of the current training step if an optimizer step was
+        performed.
         """
         if self.use_ema:
             if self.trainer.global_step > self.last_step:

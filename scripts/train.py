@@ -5,15 +5,15 @@ from comet_ml import Experiment
 import torch
 import pytorch_lightning as pl
 
-from code.gan import StyleGAN
-from code.custom_callbacks import UpdateBatchSizeDataLoader, UpdateMixingDepth
-from code.data import DataModule
+from stylegan.gan import StyleGAN
+from stylegan.custom_callbacks import UpdateBatchSizeDataLoader, UpdateMixingDepth
+from stylegan.data import DataModule
 
 from pytorch_lightning.utilities.cli import LightningCLI
 from pytorch_lightning.utilities.cli import CALLBACK_REGISTRY
 from pytorch_lightning.utilities.cli import CALLBACK_REGISTRY, OPTIMIZER_REGISTRY
 
-from code.models import Generator, Discriminator
+from stylegan.models import Generator, Discriminator
 
 
 class MyLightningCLI(LightningCLI):

@@ -128,8 +128,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-/data_set/
-/models/
-cifar-10-batches-py/
-lightning_logs/
-gans-specialization/
+.vscode/
+artifacts/

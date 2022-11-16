@@ -2,17 +2,59 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
-
-from code.custom_blocks import (
+from typing import List
+from stylegan.custom_blocks import (
     DiscriminatorBlock,
     DiscriminatorTop,
 )
 
-from code.custom_layers import CustomConv2d, Truncation
-from code.networks import GSynthesis, GMappingNetwork
+from stylegan.custom_layers import CustomConv2d, Truncation
+from stylegan.networks import GSynthesis, GMappingNetwork
 
 
 class Generator(nn.Module):
+    """Generator network.
+
+    Parameters
+    ----------
+    resolution : int
+        Resolution of the output image.
+    conditional : bool, optional
+        Whether to use conditional GAN or not, by default False
+    num_classes : int, optional
+        Number of classes to use for conditional GAN, by default 0
+    z_latent_dim : int, optional
+        Dimension of the latent vector, by default 512
+    w_latent_dim : int, optional
+        Dimension of the w latent vector, by default 512
+    hidden_dim : int, optional
+        Dimension of the hidden layers, by default 512
+    num_hidden_layers : int, optional
+        Number of hidden layers, by default 8
+    learning_rate_multiplier : float, optional
+        Learning rate multiplier for the mapping network, by default 0.01
+    activation_func : str, optional
+        Activation function to use, by default "lrelu"
+    use_wscale : bool, optional
+        Whether to use wscale or not, by default True
+    normalize_latents : bool, optional
+        Whether to normalize the latents or not, by default True
+    num_channels : int, optional
+        Number of channels in the output image, by default 3
+    structure : str, optional
+        Structure of the generator, by default "linear"
+    blur_filter : List[int], optional
+        Blur filter to use, by default None
+    truncation_psi : float, optional
+        Truncation psi value, by default 0.7
+    truncation_cutoff : float, optional
+        Truncation cutoff value, by default 8.0
+    w_latent_avg_beta : float, optional
+        Beta value for the moving average of the w latent vector, by default 0.995
+    style_mixing_prob : float, optional
+        Probability of mixing styles, by default 0.9
+    """
+
     def __init__(
         self,
         resolution: int,
@@ -28,13 +70,13 @@ class Generator(nn.Module):
         normalize_latents: bool = True,
         num_channels: int = 3,
         structure: str = "linear",
-        blur_filter: list = None,
+        blur_filter: List[int] = None,
         truncation_psi: float = 0.7,
-        truncation_cutoff: float = 8,
+        truncation_cutoff: float = 8.0,
         w_latent_avg_beta: float = 0.995,
         style_mixing_prob: float = 0.9,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
         self.conditional = conditional
         self.style_mixing_prob = style_mixing_prob
@@ -89,7 +131,7 @@ class Generator(nn.Module):
         depth: int,
         alpha: float,
         labels: torch.Tensor = None,
-    ):
+    ) -> torch.Tensor:
 
         if self.conditional:
             assert labels is not None
@@ -137,6 +179,38 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
+    """Discriminator network
+
+    Parameters
+    ----------
+    resolution : int
+        Resolution of the input image
+    structure : str, optional
+        Structure of the discriminator, by default "linear"
+    num_channels : int, optional
+        Number of channels in the input image, by default 3
+    conditional : bool, optional
+        Whether to use conditional discriminator, by default False
+    num_classes : int, optional
+        Number of classes, by default 0
+    non_linearity : str, optional
+        Non linearity to use, by default "lrelu"
+    use_wscale : bool, optional
+        Whether to use wscale, by default True
+    blur_filter : List[int], optional
+        Blur filter to use, by default None
+    minibatch_std_group_size : int, optional
+        Minibatch std group size, by default 4
+    minibatch_std_num_features : int, optional
+        Minibatch std num features, by default 1
+    fmap_base : int, optional
+        Base number of feature maps, by default 8192
+    fmap_decay : float, optional
+        Decay rate of feature maps, by default 1.0
+    fmap_max : int, optional
+        Maximum number of feature maps, by default 512
+    """
+
     def __init__(
         self,
         resolution: int,
@@ -153,7 +227,7 @@ class Discriminator(nn.Module):
         fmap_decay: float = 1.0,
         fmap_max: int = 512,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
         if conditional:
             assert num_classes > 0
@@ -169,7 +243,7 @@ class Discriminator(nn.Module):
         self.structure = structure
 
         resolution_log_2 = int(np.log2(resolution))
-        assert resolution == 2 ** resolution_log_2 and resolution >= 4
+        assert resolution == 2**resolution_log_2 and resolution >= 4
         self.depth = resolution_log_2 - 1
 
         act, gain = {
@@ -201,7 +275,7 @@ class Discriminator(nn.Module):
             )
 
             if conditional:
-                r = 2 ** res
+                r = 2**res
                 self.embeddings.append(
                     nn.Embedding(
                         num_embeddings=num_classes,
@@ -242,7 +316,13 @@ class Discriminator(nn.Module):
         # add downsampler
         self.downsampler = nn.AvgPool2d(kernel_size=2)
 
-    def forward(self, images_in, depth, alpha=0.1, labels=None):
+    def forward(
+        self,
+        images_in: torch.Tensor,
+        depth: int,
+        alpha: float = 0.1,
+        labels: torch.Tensor = None,
+    ) -> torch.Tensor:
         assert depth < self.depth
 
         if self.conditional:

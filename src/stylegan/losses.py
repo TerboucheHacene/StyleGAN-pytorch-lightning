@@ -1,24 +1,23 @@
-from turtle import forward
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from abc import ABC, abstractmethod
 
-
-class Loss(nn.Module):
-    """Base class for implemting different losses"""
+class Loss(nn.Module, ABC):
+    """Base class for implementing different losses"""
 
     def __init__(self, name, **kwargs) -> None:
         super().__init__()
         self.name = name
 
+    @abstractmethod
     def disc_loss(
         self,
         fake_preds: torch.Tensor,
         real_preds: torch.Tensor,
         **kwargs,
     ) -> torch.Tensor:
-        """[summary]
+        """Calculate discriminator loss
 
         Parameters
         ----------
@@ -38,14 +37,15 @@ class Loss(nn.Module):
             child class should implement this method
         """
         raise NotImplementedError("disc_loss has not been implemented")
-
+    
+    @abstractmethod
     def gen_loss(
         self,
         fake_preds: torch.Tensor,
         real_preds: torch.Tensor = None,
         **kwargs,
     ) -> torch.Tensor:
-        """[summary]
+        """Calculate generator loss
 
         Parameters
         ----------
@@ -86,7 +86,7 @@ class StandardGANLoss(Loss):
         real_preds : torch.Tensor
             raw discriminator predictions for real samples, shape=[batch_size,]
         fake_preds : torch.Tensor
-            raw discriminator preditioncs for fake samples, shape=[batch_size,]
+            raw discriminator predictions for fake samples, shape=[batch_size,]
 
         Returns
         -------
@@ -94,7 +94,8 @@ class StandardGANLoss(Loss):
             return the computed loss
         """
         # use softplus function softplus(x) = log(1 + exp(x))
-        # for more details see: https://pytorch.org/docs/stable/generated/torch.nn.functional.softplus.html#torch.nn.functional.softplus
+        # for more details see: 
+        # https://pytorch.org/docs/stable/generated/torch.nn.functional.softplus.html#torch.nn.functional.softplus
         # This is equivalent to nn.BCEWithLogitsLoss() in more shorter form
         real_loss = F.softplus(-real_preds).mean()
         fake_loss = F.softplus(fake_preds).mean()
@@ -162,7 +163,7 @@ class WassersteinGANLoss(Loss):
         real_preds : torch.Tensor
             raw discriminator predictions for real samples, shape=[batch_size,]
         fake_preds : torch.Tensor
-            raw discriminator preditioncs for fake samples, shape=[batch_size,]
+            raw discriminator predictions for fake samples, shape=[batch_size,]
 
         Returns
         -------
@@ -211,15 +212,16 @@ class WassersteinLossWithGP(WassersteinGANLoss):
         Parameters
         ----------
         fake_preds : torch.Tensor
-            the dicriminator's scores of the fake images
+            the discriminator's scores of the fake images
         real_preds : torch.Tensor
-            the dicriminator's scores of the real images
+            the discriminator's scores of the real images
         fake_samples : torch.Tensor
             batch of fake samples of shape = [batch_size, **data_dim]
         real_samples : torch.Tensor
             batch of real samples of shape = [batch_size, **data_dim]
         discriminator : nn.Module
-            discriminator/critor network that takes real_samples/fake_samples and returs a float value for each sample
+            discriminator/critor network that takes real_samples/fake_samples and
+             returns a float value for each sample
 
         Returns
         -------
@@ -251,7 +253,7 @@ class WassersteinLossWithGP(WassersteinGANLoss):
 
 class LSGANLoss(Loss):
     """
-    Implements Least Sqaures GAN loss proposed in:
+    Implements Least Squares GAN loss proposed in:
     https://openaccess.thecvf.com/content_ICCV_2017/papers/Mao_Least_Squares_Generative_ICCV_2017_paper.pdf
     """
 
@@ -266,9 +268,9 @@ class LSGANLoss(Loss):
         Parameters
         ----------
         fake_preds : torch.Tensor
-            the dicriminator's scores of the fake images
+            the discriminator's scores of the fake images
         real_preds : torch.Tensor
-            the dicriminator's scores of the real images
+            the discriminator's scores of the real images
 
         Returns
         -------
@@ -283,7 +285,7 @@ class LSGANLoss(Loss):
         Parameters
         ----------
         fake_preds : torch.Tensor
-            the dicriminator's scores of the fake images
+            the discriminator's scores of the fake images
 
         Returns
         -------
@@ -311,9 +313,9 @@ class HingeLoss(Loss):
         Parameters
         ----------
         fake_preds : torch.Tensor
-            the dicriminator's scores of the fake images
+            the discriminator's scores of the fake images
         real_preds : torch.Tensor
-            the dicriminator's scores of the real images
+            the discriminator's scores of the real images
 
         Returns
         -------
@@ -330,7 +332,7 @@ class HingeLoss(Loss):
         Parameters
         ----------
         fake_preds : torch.Tensor
-            the dicriminator's scores of the fake images
+            the discriminator's scores of the fake images
 
         Returns
         -------
@@ -358,9 +360,9 @@ class RelativisticAverageHingeLoss(Loss):
         Parameters
         ----------
         fake_preds : torch.Tensor
-            the dicriminator's scores of the fake images
+            the discriminator's scores of the fake images
         real_preds : torch.Tensor
-            the dicriminator's scores of the real images
+            the discriminator's scores of the real images
 
         Returns
         -------
@@ -381,9 +383,9 @@ class RelativisticAverageHingeLoss(Loss):
         Parameters
         ----------
         fake_preds : torch.Tensor
-            the dicriminator's scores of the fake images
+            the discriminator's scores of the fake images
         real_preds : torch.Tensor
-            the dicriminator's scores of the real images
+            the discriminator's scores of the real images
 
         Returns
         -------
@@ -421,13 +423,14 @@ class DRAGANLoss(Loss):
         Parameters
         ----------
         fake_preds : torch.Tensor
-            the dicriminator's scores of the fake images
+            the discriminator's scores of the fake images
         real_preds : torch.Tensor
-            the dicriminator's scores of the real images
+            the discriminator's scores of the real images
         real_samples : torch.Tensor
             batch of real samples of shape = (batch_size, d1, d2, )
         discriminator : nn.Module
-            discriminator/critor network that takes real_samples/fake_samples and returs a float value for each sample
+            discriminator/critor network that takes real_samples/fake_samples and
+            returns a float value for each sample
 
         Returns
         -------
@@ -451,7 +454,7 @@ class DRAGANLoss(Loss):
         Parameters
         ----------
         fake_preds : torch.Tensor
-            the dicriminator's scores of the fake images
+            the discriminator's scores of the fake images
 
         Returns
         -------
@@ -476,7 +479,7 @@ class R1Regularizer(nn.Module):
         Parameters
         ----------
         real_preds : torch.Tensor
-            the dicriminator's scores of the real images of shape = (batch_size, )
+            the discriminator's scores of the real images of shape = (batch_size, )
         real_samples : torch.Tensor
             a batch of real samples of shape = (batch_size, d1, d2, )
 
@@ -507,7 +510,7 @@ class R2Regularizer(nn.Module):
         Parameters
         ----------
         fake_preds : torch.Tensor
-            the dicriminator's scores of the real images
+            the discriminator's scores of the real images
         fake_samples : torch.Tensor
             a batch of real samples
 
@@ -545,7 +548,7 @@ class RLCRegularizer(nn.Module):
         Parameters
         ----------
         fake_preds : torch.Tensor
-            the dicriminator's scores of the real images
+            the discriminator's scores of the real images
         fake_samples : torch.Tensor
             a batch of real samples
 

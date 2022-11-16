@@ -1,23 +1,44 @@
-import copy
-import random
 from collections import OrderedDict
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.modules.sparse import Embedding
+from typing import List
 
-
-from code.custom_blocks import (
+from stylegan.custom_blocks import (
     GSynthesisBlock,
     InputBlock,
 )
 
-from code.custom_layers import CustomConv2d, CustomLinear, PixelNormLayer
+from stylegan.custom_layers import CustomConv2d, CustomLinear, PixelNormLayer
 
 
 class GMappingNetwork(nn.Module):
+    """Mapping network of the generator.
+
+    Parameters
+    ----------
+    z_latent_dim : int
+        Size of the z latent vector.
+    w_latent_dim : int
+        Size of the w latent vector.
+    w_latent_broadcast : int
+        Number of times to broadcast the w latent vector.
+    num_hidden_layers : int
+        Number of hidden layers.
+    hidden_dim : int
+        Size of the hidden layers.
+    learning_rate_multiplier : float
+        Learning rate multiplier.
+    activation_func : str
+        Activation function.
+    use_wscale : bool
+        Whether to use equalized learning rate.
+    normalize_latents : bool
+        Whether to normalize the latents.
+    """
+
     def __init__(
         self,
         z_latent_dim: int = 512,
@@ -30,7 +51,7 @@ class GMappingNetwork(nn.Module):
         use_wscale: bool = True,
         normalize_latents: bool = True,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
         self.z_latent_dim = z_latent_dim
         self.w_latent_dim = w_latent_dim
@@ -69,7 +90,7 @@ class GMappingNetwork(nn.Module):
 
         self.map = nn.Sequential(OrderedDict(layers))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
 
         x = self.map(x)
         # braodcast to size (batch_size, w_latent_broadcast, w_latent)
@@ -79,13 +100,49 @@ class GMappingNetwork(nn.Module):
 
 
 class GSynthesis(nn.Module):
+    """Generator synthesis network.
+
+    Parameters
+    ----------
+    w_latent_dim : int
+        Size of the w latent vector.
+    num_channels : int
+        Number of channels in the output image.
+    resolution : int
+        Resolution of the output image.
+    structure : str
+        Structure of the network, either linear or fixed.
+    blur_filter : List[int]
+        Blur filter.
+    use_styles : bool
+        Whether to use styles.
+    const_input_layer : bool
+        Whether to use a constant input layer.
+    use_noise : bool
+        Whether to use noise.
+    use_wscales : bool
+        Whether to use equalized learning rate.
+    use_pixel_norm : bool
+        Whether to use pixel norm.
+    use_instance_norm : bool
+        Whether to use instance norm.
+    non_linearity : st
+        Non-linearity to use either relu or lrelu.
+    fmap_base : int
+        Base number of feature maps.
+    fmap_decay : float
+        Decay rate of the feature maps.
+    fmap_max : int
+        Maximum number of feature maps.
+    """
+
     def __init__(
         self,
         w_latent_dim: int = 512,
         num_channels: int = 3,
         resolution: int = 1024,
         structure: str = "linear",
-        blur_filter: list = None,
+        blur_filter: List[int] = None,
         use_styles: bool = True,
         const_input_layer: bool = True,
         use_noise: bool = True,
@@ -97,7 +154,7 @@ class GSynthesis(nn.Module):
         fmap_decay: float = 1.0,
         fmap_max: int = 512,
         **kwargs,
-    ):
+    ) -> None:
 
         super().__init__()
 
@@ -106,7 +163,7 @@ class GSynthesis(nn.Module):
 
         self.structure = structure
         resolution_log_2 = int(np.log2(resolution))
-        assert resolution == 2 ** resolution_log_2 and resolution >= 4
+        assert resolution == 2**resolution_log_2 and resolution >= 4
         self.depth = resolution_log_2 - 1
 
         self.num_layers = resolution_log_2 * 2 - 2
@@ -176,7 +233,12 @@ class GSynthesis(nn.Module):
 
         self.temporaryUpsampler = lambda x: F.interpolate(x, scale_factor=2)
 
-    def forward(self, w_latent_in, depth=0, alpha=0.0, labels=None):
+    def forward(
+        self,
+        w_latent_in: torch.Tensor,
+        depth: int = 0,
+        alpha: float = 0.0,
+    ) -> torch.Tensor:
         assert depth < self.depth
 
         if self.structure == "fixed":

@@ -1,6 +1,6 @@
 trainer:
   callbacks:
-    - class_path: code.custom_callbacks.UpdateBatchSizeDataLoader
+    - class_path: stylegan.custom_callbacks.UpdateBatchSizeDataLoader
       init_args:
         batch_sizes:
           - 512
@@ -8,8 +8,10 @@ trainer:
           - 256
           - 128
           - 64
+          - 64
           - 32
-    - class_path: code.custom_callbacks.UpdateMixingDepth
+          - 32
+    - class_path: stylegan.custom_callbacks.UpdateMixingDepth
       init_args:
         epochs_for_each_depth:
           - 2
@@ -18,16 +20,22 @@ trainer:
           - 32
           - 64
           - 64
+          - 64
+          - 80
         fade_for_each_depth:
           - 50
           - 50
           - 50
           - 50
           - 50
+          - 50
+          - 50
+          - 50
+  gpus: 1
   gradient_clip_val: 1
   gradient_clip_algorithm: norm
-  max_epochs: 182
-  limit_train_batches: 1.0
+  max_epochs: 326
+  limit_train_batches: 0.1
   log_every_n_steps: 10
   reload_dataloaders_every_n_epochs: 1
   logger:
@@ -35,12 +43,13 @@ trainer:
     init_args:
       api_key: F8z2rvZxchPyTT2l1IawCAE7G
       project_name: gans-specialization
+      save_dir: artifacts/
 
 model:
   generator:
-    class_path: code.models.Generator
+    class_path: stylegan.models.Generator
     init_args:
-      resolution: 128
+      resolution: 512
       conditional: False
       num_classes: 0
       z_latent_dim: 512
@@ -58,14 +67,14 @@ model:
         - 2
         - 1
       truncation_psi: 0.7
-      truncation_cutoff: 8
+      truncation_cutoff: 9.5
       w_latent_avg_beta: 0.995
       style_mixing_prob: 0.9
 
   discriminator:
-    class_path: code.models.Discriminator
+    class_path: stylegan.models.Discriminator
     init_args:
-      resolution: 128
+      resolution: 512
       structure: "linear"
       num_channels: 3
       conditional: False
@@ -83,7 +92,7 @@ model:
   loss: logistic
   drift: 0.001
   disc_repeats: 1
-  use_ema: false
+  use_ema: True
   ema_decay: 0.999
 
 gen_optimizer:
@@ -104,9 +113,10 @@ disc_optimizer:
       - 0.99
     eps: 1e-8
 data:
-  data_dir: ../data_set/animeface-character-dataset/thumb
+  #data_dir: /raid/home/labuserterbouche/data/videos/LOL_WR/big/
+  data_dir: /raid/home/labuserterbouche/workspace/StyleGAN-pytorch-lightining/artifacts/animeface-character-dataset/thumb/
   image_size:
-    - 128
-    - 128
-  batch_size: 64
-  num_workers: 4
+    - 512
+    - 512
+  batch_size: 512
+  num_workers: 8

@@ -4,11 +4,14 @@ version = "0.0.1"
 description = "Pytorch Lightning Implementation of StyleGAN"
 authors = ["haceneterbouche <hacene@powder.gg>"]
 license = "MIT License"
+packages = [
+    { include = "stylegan", from="src"},
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-torch = "^1.8.1" # +cu111
-torchvision = "^0.9.1" # +cu111
+torch = "^1.8.1" # +cu113
+torchvision = "^0.9.1" # +cu113
 torchaudio = "^0.8.1"
 #pytorch-lightning = {version = "1.5.8", extras = ["extra"]}
 pytorch-lightning = "^1.5.8"
