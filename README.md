@@ -16,7 +16,7 @@ The official Tensorflow implementation can be found here https://github.com/NVla
 The authors also released the Pytorch implementation: https://github.com/NVlabs/stylegan2-ada/
 
 ## How to use
----
+
 To make things simple, I recommend using *Poetry* as the python package manager. It can be installed [here](https://python-poetry.org/docs/#installation).
 After cloning the repo, you can install everything by doing:
 
@@ -28,7 +28,7 @@ To start the training:
 > `python scripts/train.py fit --config configs/config.yaml`
 
 ## Content
----
+
 This repo implements the following features:
 - Implemented features related to the architecture
     -  Progressive Growing Training
@@ -45,6 +45,6 @@ This repo implements the following features:
     - Multi-GPU Training
 
 ## Acknowledgement
----
+
 Most of the custom layers/ basic blocks were either inspired or copied (with variable renaming , clear documentation and more organization) from this [repo](https://github.com/lernapparat/lernapparat/tree/master/style_gan). I would like to thank the authors of this repo for helping me implementing the paper.
 
