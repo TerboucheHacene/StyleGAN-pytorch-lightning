@@ -1,4 +1,4 @@
-# StyleGAN-pytorch-lightining
+# StyleGAN-pytorch-lightning
 
 This repository contains an attempt to implement the StyleGAN V1 architecture using Pytorch and Pytorch Lightning. It have been proposed in the following paper:
 
